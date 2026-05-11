@@ -1,20 +1,35 @@
 import os
+import sys
 import httpx
 import uvicorn
 from mcp.server.fastmcp import FastMCP
 
-# Disable host validation before creating the app
-try:
-    from mcp.server.streamable_http import StreamableHTTPSessionManager
-    StreamableHTTPSessionManager._is_valid_host = lambda self, host: True
-except Exception:
-    pass
+# Find and patch _is_valid_host wherever it lives
+def _patch_host_validation():
+    import importlib
+    import pkgutil
+    import mcp.server as mcp_server
 
-try:
-    from mcp.server.streamable_http_manager import StreamableHTTPSessionManager as M2
-    M2._is_valid_host = lambda self, host: True
-except Exception:
-    pass
+    for importer, modname, ispkg in pkgutil.walk_packages(
+        path=mcp_server.__path__,
+        prefix="mcp.server.",
+        onerror=lambda x: None,
+    ):
+        try:
+            mod = importlib.import_module(modname)
+            for attr_name in dir(mod):
+                cls = getattr(mod, attr_name, None)
+                if (
+                    isinstance(cls, type)
+                    and hasattr(cls, "_is_valid_host")
+                    and callable(getattr(cls, "_is_valid_host", None))
+                ):
+                    print(f"[patch] {modname}.{attr_name}._is_valid_host → allow all", flush=True)
+                    cls._is_valid_host = lambda self, host: True
+        except Exception as e:
+            print(f"[patch] skip {modname}: {e}", flush=True)
+
+_patch_host_validation()
 
 mcp = FastMCP("estoque-now")
 
