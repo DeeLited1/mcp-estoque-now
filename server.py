@@ -107,7 +107,7 @@ async def buscar_itens_disponiveis(query: str, data_evento: str) -> str:  # noqa
         img = _clean_image_url(item.get("url_image", ""))
 
         lines.append(f"{i}. {name} — R${price} (qty: {qty})")
-        if i == 1 and img:
+        if img:
             lines.append(f"   foto: {img}")
 
     return "\n".join(lines)
