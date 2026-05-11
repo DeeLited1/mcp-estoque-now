@@ -1,6 +1,11 @@
 import os
 import httpx
+import uvicorn
 from mcp.server.fastmcp import FastMCP
+from starlette.applications import Starlette
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.routing import Mount, Route
 
 mcp = FastMCP("estoque-now")
 
@@ -79,8 +84,19 @@ async def buscar_itens_disponiveis(query: str, data_evento: str) -> str:
     return "\n".join(lines)
 
 
+async def health(request: Request):
+    return JSONResponse({"status": "ok"})
+
+
 if __name__ == "__main__":
-    import uvicorn
     port = int(os.environ.get("PORT", 8000))
-    app = mcp.streamable_http_app()
+    mcp_app = mcp.streamable_http_app()
+
+    app = Starlette(
+        routes=[
+            Route("/health", health),
+            Mount("/", app=mcp_app),
+        ]
+    )
+
     uvicorn.run(app, host="0.0.0.0", port=port)
