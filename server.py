@@ -3,6 +3,19 @@ import httpx
 import uvicorn
 from mcp.server.fastmcp import FastMCP
 
+# Disable host validation before creating the app
+try:
+    from mcp.server.streamable_http import StreamableHTTPSessionManager
+    StreamableHTTPSessionManager._is_valid_host = lambda self, host: True
+except Exception:
+    pass
+
+try:
+    from mcp.server.streamable_http_manager import StreamableHTTPSessionManager as M2
+    M2._is_valid_host = lambda self, host: True
+except Exception:
+    pass
+
 mcp = FastMCP("estoque-now")
 
 BASE_URL = "https://api.estoquenow.com.br"
@@ -80,25 +93,7 @@ async def buscar_itens_disponiveis(query: str, data_evento: str) -> str:
     return "\n".join(lines)
 
 
-class TrustAllHostsMiddleware:
-    """Rewrites the Host header to 'localhost' so FastMCP's DNS-rebinding
-    protection does not block requests from external domains."""
-
-    def __init__(self, app):
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] == "http":
-            headers = [
-                (b"host", b"localhost") if k == b"host" else (k, v)
-                for k, v in scope["headers"]
-            ]
-            scope = {**scope, "headers": headers}
-        await self.app(scope, receive, send)
-
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
-    mcp_app = mcp.streamable_http_app()
-    app = TrustAllHostsMiddleware(mcp_app)
+    app = mcp.streamable_http_app()
     uvicorn.run(app, host="0.0.0.0", port=port)
