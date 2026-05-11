@@ -34,7 +34,16 @@ async def _get_token() -> str:
             json={"client_id": CLIENT_ID, "client_secret": CLIENT_SECRET},
         )
         r.raise_for_status()
-        return r.json()["data"]["token"]
+        body = r.json()
+        print(f"[token] response keys: {list(body.keys())}", flush=True)
+        # try both common structures
+        if "data" in body and isinstance(body["data"], dict) and "token" in body["data"]:
+            return body["data"]["token"]
+        if "token" in body:
+            return body["token"]
+        if "access_token" in body:
+            return body["access_token"]
+        raise ValueError(f"Unexpected token response: {body}")
 
 
 def _clean_image_url(url: str) -> str:
@@ -44,7 +53,7 @@ def _clean_image_url(url: str) -> str:
 
 
 @mcp.tool()
-async def buscar_itens_disponiveis(query: str, data_evento: str) -> str:
+async def buscar_itens_disponiveis(query: str, data_evento: str) -> str:  # noqa: C901
     """
     Busca itens disponíveis para locação no Studio Paty Pickler Locações.
 
@@ -55,9 +64,13 @@ async def buscar_itens_disponiveis(query: str, data_evento: str) -> str:
     - Sequência obrigatória: 1ª busca = mesa, 2ª = biombo/painel, 3ª em diante = complementos.
     - NUNCA comece por vasos, flores ou acessórios.
     """
-    token = await _get_token()
+    try:
+        token = await _get_token()
+    except Exception as e:
+        print(f"[buscar] token error: {e}", flush=True)
+        return f"Erro ao autenticar no sistema de estoque: {e}"
 
-    async with httpx.AsyncClient(timeout=15) as client:
+    try:
         params = {
             "search": query,
             "start_date": data_evento,
@@ -69,15 +82,19 @@ async def buscar_itens_disponiveis(query: str, data_evento: str) -> str:
             "sort_by": "unit_price",
             "sort_order": "desc",
         }
-        print(f"[buscar] query={query!r} data={data_evento!r} params={params}", flush=True)
-        r = await client.get(
-            f"{BASE_URL}/v1/inventory/availability",
-            headers={"Authorization": f"Bearer {token}"},
-            params=params,
-        )
+        print(f"[buscar] query={query!r} data={data_evento!r}", flush=True)
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.get(
+                f"{BASE_URL}/v1/inventory/availability",
+                headers={"Authorization": f"Bearer {token}"},
+                params=params,
+            )
         print(f"[buscar] status={r.status_code} body={r.text[:300]}", flush=True)
         r.raise_for_status()
         data = r.json()
+    except Exception as e:
+        print(f"[buscar] inventory error: {e}", flush=True)
+        return f"Erro ao consultar estoque: {e}"
 
     items = data.get("data", {}).get("items", [])
     total = data.get("recordsFiltered", 0)
