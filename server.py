@@ -1,35 +1,24 @@
 import os
-import sys
 import httpx
 import uvicorn
 from mcp.server.fastmcp import FastMCP
 
-# Find and patch _is_valid_host wherever it lives
-def _patch_host_validation():
-    import importlib
-    import pkgutil
-    import mcp.server as mcp_server
-
-    for importer, modname, ispkg in pkgutil.walk_packages(
-        path=mcp_server.__path__,
-        prefix="mcp.server.",
-        onerror=lambda x: None,
-    ):
-        try:
-            mod = importlib.import_module(modname)
-            for attr_name in dir(mod):
-                cls = getattr(mod, attr_name, None)
-                if (
-                    isinstance(cls, type)
-                    and hasattr(cls, "_is_valid_host")
-                    and callable(getattr(cls, "_is_valid_host", None))
-                ):
-                    print(f"[patch] {modname}.{attr_name}._is_valid_host → allow all", flush=True)
-                    cls._is_valid_host = lambda self, host: True
-        except Exception as e:
-            print(f"[patch] skip {modname}: {e}", flush=True)
-
-_patch_host_validation()
+# Patch TransportSecurityMiddleware to allow all hosts (Railway proxy changes Host header)
+try:
+    import mcp.server.transport_security as _ts
+    _patched = []
+    for _name in dir(_ts):
+        _cls = getattr(_ts, _name, None)
+        if isinstance(_cls, type):
+            if hasattr(_cls, "_validate_host"):
+                _cls._validate_host = lambda self, host: True
+                _patched.append(f"{_name}._validate_host")
+            if hasattr(_cls, "_validate_origin"):
+                _cls._validate_origin = lambda self, origin: True
+                _patched.append(f"{_name}._validate_origin")
+    print(f"[patch] transport_security patched: {_patched}", flush=True)
+except Exception as _e:
+    print(f"[patch] transport_security error: {_e}", flush=True)
 
 mcp = FastMCP("estoque-now")
 
