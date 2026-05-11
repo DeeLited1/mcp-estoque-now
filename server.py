@@ -58,21 +58,24 @@ async def buscar_itens_disponiveis(query: str, data_evento: str) -> str:
     token = await _get_token()
 
     async with httpx.AsyncClient(timeout=15) as client:
+        params = {
+            "search": query,
+            "start_date": data_evento,
+            "end_date": data_evento,
+            "management_type": "rent",
+            "page": 1,
+            "per_page": 5,
+            "only_in_stock": 1,
+            "sort_by": "unit_price",
+            "sort_order": "desc",
+        }
+        print(f"[buscar] query={query!r} data={data_evento!r} params={params}", flush=True)
         r = await client.get(
             f"{BASE_URL}/v1/inventory/availability",
             headers={"Authorization": f"Bearer {token}"},
-            params={
-                "search": query,
-                "start_date": data_evento,
-                "end_date": data_evento,
-                "management_type": "rent",
-                "page": 1,
-                "per_page": 5,
-                "only_in_stock": 1,
-                "sort_by": "unit_price",
-                "sort_order": "desc",
-            },
+            params=params,
         )
+        print(f"[buscar] status={r.status_code} body={r.text[:300]}", flush=True)
         r.raise_for_status()
         data = r.json()
 
