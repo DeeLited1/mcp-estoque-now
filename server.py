@@ -35,15 +35,13 @@ async def _get_token() -> str:
         )
         r.raise_for_status()
         body = r.json()
-        print(f"[token] response keys: {list(body.keys())}", flush=True)
-        # try both common structures
         if "data" in body and isinstance(body["data"], dict) and "token" in body["data"]:
             return body["data"]["token"]
         if "token" in body:
             return body["token"]
         if "access_token" in body:
             return body["access_token"]
-        raise ValueError(f"Unexpected token response: {body}")
+        raise ValueError(f"Unexpected token response structure: {list(body.keys())}")
 
 
 def _clean_image_url(url: str) -> str:
@@ -82,14 +80,12 @@ async def buscar_itens_disponiveis(query: str, data_evento: str) -> str:  # noqa
             "sort_by": "unit_price",
             "sort_order": "desc",
         }
-        print(f"[buscar] query={query!r} data={data_evento!r}", flush=True)
         async with httpx.AsyncClient(timeout=15) as client:
             r = await client.get(
                 f"{BASE_URL}/v1/inventory/availability",
                 headers={"Authorization": f"Bearer {token}"},
                 params=params,
             )
-        print(f"[buscar] status={r.status_code} body={r.text[:300]}", flush=True)
         r.raise_for_status()
         data = r.json()
     except Exception as e:
